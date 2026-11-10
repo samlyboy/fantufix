@@ -173,9 +173,9 @@ struct ContentView: View {
             Text("1. 点上面的按钮，一次勾选要处理的图片和视频（不乱也行，程序会按相册时间排序）")
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
-            Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，画面不加任何标记")
+            Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，素材画面不加任何标记")
             Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，只改相册先后")
-            Text("6. 点底部「重新排列」：按当前顺序把素材原样写入系统相册，不烧编号、不写分隔图")
+            Text("6. 点底部「重新排列」：先写 1 张红底黄字分隔图进相册，再按当前顺序把素材原样写入；素材画面不烧编号")
             Text("7. 原片一条不动，新文件进系统相册「最近项目」")
         }
         .font(.footnote)
@@ -425,7 +425,7 @@ struct ContentView: View {
 
     // MARK: - 排列模式开关
 
-    /// 两种写入相册的顺序模式。开关只改时间戳顺序，画面与素材本身不动。
+    /// 两种写入相册的顺序模式。开关只改时间戳顺序；红底分隔图照旧写在最前，素材画面不动。
     private var orderModeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: $keepOriginalOrder) {
@@ -433,7 +433,7 @@ struct ContentView: View {
             }
 
             Text(keepOriginalOrder
-                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；画面不加任何标记。切到「倒序」时整串反过来。"
+                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；红底分隔图照旧在最前，素材画面不加标记。切到「倒序」时整串反过来。"
                  : "关闭（默认）：按 图1 视1 图2 视2… 交替写入相册，顺序会变。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -518,14 +518,14 @@ struct ContentView: View {
             Text("重排后的顺序").font(.headline)
 
             if let plan = plan, !plan.entries.isEmpty, let start = startValue, let end = endValue {
-                Text("相册顺序：" + plan.entries.enumerated().map { "\($0.offset + 1)·\($0.element.item.kind.short)" }
+                Text("相册顺序：" + (["分隔图"] + plan.entries.enumerated().map { "\($0.offset + 1)·\($0.element.item.kind.short)" })
                     .joined(separator: " → "))
                     .font(.subheadline.monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(keepOriginalOrder
-                     ? "上面是相册里从上往下的先后，跟网格原有顺序完全一致"
-                     : "上面是相册里从上往下的先后（图、视交替）；网格右上角的编号只在 App 里显示，不会写进画面")
+                     ? "最前一张是红底分隔图，后面跟网格原有顺序完全一致"
+                     : "最前一张是红底分隔图；后面按图、视交替排。网格右上角的编号只在 App 里显示，不会写进画面")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

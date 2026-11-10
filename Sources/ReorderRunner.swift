@@ -25,9 +25,25 @@ final class ReorderRunner: ObservableObject {
             return
         }
 
-        let total = Double(plan.entries.count)
+        let total = Double(plan.entries.count + 1)   // 1 张分隔图 + N 个素材
         var done: Double = 0
         var failures: [String] = []
+
+        // 每批最前面写一张红底黄字分隔图（时间戳最新，所以排在相册最前）
+        status = "生成红色分隔图…"
+        do {
+            let data = Renderer.separatorJPEG(count: plan.entries.count, date: plan.separatorDate)
+            guard !data.isEmpty else { throw LibraryError.renderFailed }
+            try await LibraryService.savePhoto(
+                data: data,
+                creationDate: plan.separatorDate,
+                filename: "reorder_separator.jpg"
+            )
+        } catch {
+            failures.append("分隔图：\(error.localizedDescription)")
+        }
+        done += 1
+        fraction = done / total
 
         for (index, entry) in plan.entries.enumerated() {
             let trimNote = entry.item.kind == .video && trimSeconds > 0
@@ -80,10 +96,10 @@ final class ReorderRunner: ObservableObject {
         status = "完成"
         fraction = 1
 
-        let successCount = plan.entries.count - failures.count
+        let successCount = plan.entries.count + 1 - failures.count
         alertTitle = failures.isEmpty ? "重排完成" : "部分完成"
         if failures.isEmpty {
-            alertMessage = "已写入 \(successCount) 个新文件到系统相册，画面保持原样（不烧编号、不写分隔图）。原片未改动。"
+            alertMessage = "已写入 \(successCount) 个新文件到系统相册（1 张分隔图 + \(plan.entries.count) 个素材），素材画面不烧编号。原片未改动。"
         } else {
             alertMessage = "成功 \(successCount) 个，失败 \(failures.count) 个：\n"
                 + failures.prefix(6).joined(separator: "\n")
