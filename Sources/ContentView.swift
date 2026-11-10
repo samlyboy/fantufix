@@ -32,6 +32,20 @@ struct ContentView: View {
         return (value >= 1 && value <= selectedCount) ? value : nil
     }
 
+    /// 当前区间是否为倒序（起 > 止）
+    private var isReverseRange: Bool {
+        guard let start = startValue, let end = endValue else { return false }
+        return start > end
+    }
+
+    /// 起 / 止互换：1→5 变成 5→1
+    private func toggleDirection() {
+        let start = startValue ?? 1
+        let end = endValue ?? selectedCount
+        startText = "\(end)"
+        endText = "\(start)"
+    }
+
     private var plan: ReorderPlan? {
         guard let start = startValue, let end = endValue else { return nil }
         return ReorderPlanner.makePlan(items: selectedItems, start: start, end: end, now: Date())
@@ -340,7 +354,29 @@ struct ContentView: View {
 
     private var rangeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("处理区间").font(.headline)
+            HStack {
+                Text("处理区间").font(.headline)
+                Spacer(minLength: 8)
+                Button {
+                    toggleDirection()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isReverseRange ? "倒序" : "顺序")
+                        Image(systemName: isReverseRange ? "arrow.up" : "arrow.down")
+                            .font(.caption.weight(.bold))
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(isReverseRange
+                                ? Color.orange.opacity(0.18)
+                                : Color(uiColor: .secondarySystemFill))
+                    .foregroundStyle(isReverseRange ? Color.orange : Color.secondary)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.borderless)
+                .disabled(selectedCount < 2)
+            }
 
             HStack(spacing: 12) {
                 numberField(title: "起", text: $startText)
