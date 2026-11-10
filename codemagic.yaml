@@ -1,0 +1,46 @@
+# Codemagic 备用编译通道（主路仍是 .github/workflows/build.yml）
+# 只在 GitHub Actions 编译失败时手动 Start new build 使用，请在 Codemagic 应用设置里关闭自动触发。
+# 产出未签名 IPA 供 TrollStore 侧载：不签名、不传 TestFlight、不需要 Apple 开发者账号。
+# 如需固定 Xcode 版本，把 xcode: latest 换成具体版本（例如 16.4）。
+workflows:
+  ios-unsigned-ipa:
+    name: FanTuFix unsigned IPA (backup)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Install xcodegen
+        script: brew install xcodegen
+      - name: Generate Xcode project
+        script: xcodegen generate
+      - name: Build unsigned
+        script: |
+          set -o pipefail
+          xcodebuild \
+            -project FanTuFix.xcodeproj \
+            -scheme FanTuFix \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            build 2>&1 | tee xcodebuild.log | tail -n 120
+      - name: Package ipa
+        script: |
+          APP="build/Build/Products/Release-iphoneos/FanTuFix.app"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist")
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry "FanTuFix-v${VERSION}-b${BUILD}.ipa" Payload
+          ls -lh FanTuFix-v*.ipa
+          echo "Bundle ID: $BUNDLE"
+    artifacts:
+      - FanTuFix-v*.ipa
+      - xcodebuild.log
