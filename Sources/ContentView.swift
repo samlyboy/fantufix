@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var endText = ""
     /// 视频裁头秒数（默认 0.05，只作用于视频，不影响图片）
     @State private var trimText = "0.05"
+    /// 写入相册的排列模式：关=图视交替（现状）；开=按网格原有顺序、顺序不变
+    @State private var keepOriginalOrder = false
     @State private var isLoadingThumbs = false
     /// 每次清空 / 重新选片都 +1，用来作废还在跑的缩略图加载（否则清空后会被旧任务写回来）
     @State private var loadGeneration = 0
@@ -48,7 +50,8 @@ struct ContentView: View {
 
     private var plan: ReorderPlan? {
         guard let start = startValue, let end = endValue else { return nil }
-        return ReorderPlanner.makePlan(items: selectedItems, start: start, end: end, now: Date())
+        return ReorderPlanner.makePlan(items: selectedItems, start: start, end: end,
+                                      now: Date(), keepOriginalOrder: keepOriginalOrder)
     }
 
     /// item.id → 编号（烧进画面的那个号）。按「起 → 止」的位次 1…M 连排，与图视交替无关
@@ -85,6 +88,7 @@ struct ContentView: View {
                     } else {
                         gridSection
                         rangeSection
+                        orderModeSection
                         if videoCount > 0 { trimSection }
                         orderSection
                     }
@@ -170,8 +174,9 @@ struct ContentView: View {
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
             Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁），再烧编号写入相册；图片不裁")
-            Text("5. 点底部「重新排列」：先写一张红色分隔图进相册，再按 图1 视1 图2 视2… 的顺序批量写入新文件，每张右上角带编号")
-            Text("6. 原片一条不动，新文件进系统相册「最近项目」")
+            Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，顺序不变（分隔图、编号、视频裁头都照旧）")
+            Text("6. 点底部「重新排列」：先写一张红色分隔图进相册，再按当前模式批量写入新文件，每个右上角带编号")
+            Text("7. 原片一条不动，新文件进系统相册「最近项目」")
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
@@ -397,8 +402,10 @@ struct ContentView: View {
                          ? "倒序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个"
                          : "正序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个")
                     Text("编号从「起」那格开始、朝「止」的方向每格 +1：编号 1 = 第 \(start) 个，编号 \(amount) = 第 \(end) 个")
-                    if hasBothKinds(in: start, end: end) {
-                        Text("图文混排：编号在网格里是 1、2、3… 连排的；相册里的先后按 图1 视1 图2 视2 交替，所以号在相册里会跳着出现")
+                    if hasBothKinds(in: start, end: end) || keepOriginalOrder {
+                        Text(keepOriginalOrder
+                             ? "保持原顺序：相册里的先后跟网格完全一致，编号 1、2、3… 顺着排下来，不会跳号；切「倒序」时整串反过来"
+                             : "图文混排：编号在网格里是 1、2、3… 连排的；相册里的先后按 图1 视1 图2 视2 交替，所以号在相册里会跳着出现")
                     }
                 }
                 .font(.footnote)
@@ -410,6 +417,27 @@ struct ContentView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - 排列模式开关
+
+    /// 两种写入相册的顺序模式。开关只改时间戳顺序，分隔图/编号/裁头全部照旧。
+    private var orderModeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $keepOriginalOrder) {
+                Text("保持原顺序（不交替）").font(.headline)
+            }
+
+            Text(keepOriginalOrder
+                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；红色分隔图、右上角编号、视频裁头照旧。切到「倒序」时整串反过来。"
+                 : "关闭（默认）：按 图1 视1 图2 视2… 交替写入相册，顺序会变。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -495,7 +523,9 @@ struct ContentView: View {
                     .font(.subheadline.monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("上面是相册里从上往下的先后（图、视交替）；每个素材烧进画面的编号见网格右上角，是 1、2、3… 连排的另一套号")
+                Text(keepOriginalOrder
+                     ? "上面是相册里从上往下的先后，跟网格原有顺序完全一致；编号 1、2、3… 顺着排下来，不会跳号"
+                     : "上面是相册里从上往下的先后（图、视交替）；每个素材烧进画面的编号见网格右上角，是 1、2、3… 连排的另一套号")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
