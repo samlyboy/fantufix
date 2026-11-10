@@ -34,11 +34,12 @@ struct MediaItem: Identifiable {
 struct PlanEntry: Identifiable {
     let id: String
     let item: MediaItem
+    /// 网格里显示的位次编号（仅 App 内辅助查看选中顺序，不会写进画面）
     let number: Int
+    /// 写入相册时使用的创建时间，决定相册里的先后
     let date: Date
 }
 
 struct ReorderPlan {
-    var separatorDate: Date
     var entries: [PlanEntry]
 }

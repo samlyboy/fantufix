@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AVFoundation
 
 final class ReorderRunner: ObservableObject {
     @Published var isRunning = false
@@ -24,62 +25,50 @@ final class ReorderRunner: ObservableObject {
             return
         }
 
-        let total = Double(plan.entries.count + 1)
+        let total = Double(plan.entries.count)
         var done: Double = 0
         var failures: [String] = []
-
-        status = "生成红色分隔图…"
-        do {
-            let data = Renderer.separatorJPEG(count: plan.entries.count, date: plan.separatorDate)
-            guard !data.isEmpty else { throw LibraryError.renderFailed }
-            try await LibraryService.savePhoto(
-                data: data,
-                creationDate: plan.separatorDate,
-                filename: "reorder_separator.jpg"
-            )
-        } catch {
-            failures.append("分隔图：\(error.localizedDescription)")
-        }
-        done += 1
-        fraction = done / total
 
         for (index, entry) in plan.entries.enumerated() {
             let trimNote = entry.item.kind == .video && trimSeconds > 0
                 ? " · 裁头 \(String(format: "%.2f", trimSeconds))s"
                 : ""
-            status = "处理中 \(index + 1) / \(plan.entries.count)（编号 \(entry.number) · \(entry.item.kind.short)\(trimNote)）"
+            status = "处理中 \(index + 1) / \(plan.entries.count)（第 \(entry.number) 个 · \(entry.item.kind.short)\(trimNote)）"
             do {
                 switch entry.item.kind {
                 case .image:
+                    // 原图字节直写相册：不解码、不重编码、不烧编号、不加任何标记
                     let source = try await LibraryService.imageData(for: entry.item.id)
-                    guard let output = Renderer.imageJPEGWithBadge(
-                        source: source,
-                        number: entry.number,
-                        date: entry.date
-                    ) else {
-                        throw LibraryError.renderFailed
-                    }
+                    guard !source.isEmpty else { throw LibraryError.assetMissing }
                     try await LibraryService.savePhoto(
-                        data: output,
+                        data: source,
                         creationDate: entry.date,
                         filename: "reorder_\(entry.number).jpg"
                     )
                 case .video:
                     let asset = try await LibraryService.avAsset(for: entry.item.id)
-                    let tmp = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("reorder_\(entry.number)_\(UUID().uuidString).mp4")
-                    defer { try? FileManager.default.removeItem(at: tmp) }
-                    try await VideoBadger.export(
-                        asset: asset,
-                        number: entry.number,
-                        trimSeconds: trimSeconds,
-                        to: tmp
-                    )
-                    try await LibraryService.saveVideo(
-                        fileURL: tmp,
-                        creationDate: entry.date,
-                        filename: "reorder_\(entry.number).mp4"
-                    )
+                    // 不裁头时把原视频文件原样写进相册；拿不到本地文件才做一次无标记导出
+                    if trimSeconds <= 0, let urlAsset = asset as? AVURLAsset {
+                        try await LibraryService.saveVideo(
+                            fileURL: urlAsset.url,
+                            creationDate: entry.date,
+                            filename: "reorder_\(entry.number).mp4"
+                        )
+                    } else {
+                        let tmp = FileManager.default.temporaryDirectory
+                            .appendingPathComponent("reorder_\(entry.number)_\(UUID().uuidString).mp4")
+                        defer { try? FileManager.default.removeItem(at: tmp) }
+                        try await VideoBadger.export(
+                            asset: asset,
+                            trimSeconds: trimSeconds,
+                            to: tmp
+                        )
+                        try await LibraryService.saveVideo(
+                            fileURL: tmp,
+                            creationDate: entry.date,
+                            filename: "reorder_\(entry.number).mp4"
+                        )
+                    }
                 }
             } catch {
                 failures.append("第 \(entry.number) 个（\(entry.item.kind.short)）：\(error.localizedDescription)")
@@ -91,10 +80,10 @@ final class ReorderRunner: ObservableObject {
         status = "完成"
         fraction = 1
 
-        let successCount = plan.entries.count + 1 - failures.count
+        let successCount = plan.entries.count - failures.count
         alertTitle = failures.isEmpty ? "重排完成" : "部分完成"
         if failures.isEmpty {
-            alertMessage = "已写入 \(successCount) 个新文件到系统相册（1 张分隔图 + \(plan.entries.count) 个素材）。原片未改动。"
+            alertMessage = "已写入 \(successCount) 个新文件到系统相册，画面保持原样（不烧编号、不写分隔图）。原片未改动。"
         } else {
             alertMessage = "成功 \(successCount) 个，失败 \(failures.count) 个：\n"
                 + failures.prefix(6).joined(separator: "\n")

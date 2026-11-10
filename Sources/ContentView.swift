@@ -54,7 +54,7 @@ struct ContentView: View {
                                       now: Date(), keepOriginalOrder: keepOriginalOrder)
     }
 
-    /// item.id → 编号（烧进画面的那个号）。按「起 → 止」的位次 1…M 连排，与图视交替无关
+    /// item.id → 网格编号（只在 App 里显示，不会写进画面）。按「起 → 止」的位次 1…M 连排，与图视交替无关
     private var numberMap: [String: Int] {
         guard let plan = plan else { return [:] }
         var map: [String: Int] = [:]
@@ -173,9 +173,9 @@ struct ContentView: View {
             Text("1. 点上面的按钮，一次勾选要处理的图片和视频（不乱也行，程序会按相册时间排序）")
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
-            Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁），再烧编号写入相册；图片不裁")
-            Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，顺序不变（分隔图、编号、视频裁头都照旧）")
-            Text("6. 点底部「重新排列」：先写一张红色分隔图进相册，再按当前模式批量写入新文件，每个右上角带编号")
+            Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，画面不加任何标记")
+            Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，只改相册先后")
+            Text("6. 点底部「重新排列」：按当前顺序把素材原样写入系统相册，不烧编号、不写分隔图")
             Text("7. 原片一条不动，新文件进系统相册「最近项目」")
         }
         .font(.footnote)
@@ -190,7 +190,7 @@ struct ContentView: View {
     private var gridSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("素材 · 左上小字=原始序号，右上红字=编号")
+                Text("素材 · 左上=原始序号，右上红圈=选中编号（只在 App 里显示）")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -401,11 +401,11 @@ struct ContentView: View {
                     Text(isReverse
                          ? "倒序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个"
                          : "正序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个")
-                    Text("编号从「起」那格开始、朝「止」的方向每格 +1：编号 1 = 第 \(start) 个，编号 \(amount) = 第 \(end) 个")
+                    Text("网格编号从「起」那格开始、朝「止」的方向每格 +1，只用于 App 里查看，不会写进画面")
                     if hasBothKinds(in: start, end: end) || keepOriginalOrder {
                         Text(keepOriginalOrder
-                             ? "保持原顺序：相册里的先后跟网格完全一致，编号 1、2、3… 顺着排下来，不会跳号；切「倒序」时整串反过来"
-                             : "图文混排：编号在网格里是 1、2、3… 连排的；相册里的先后按 图1 视1 图2 视2 交替，所以号在相册里会跳着出现")
+                             ? "保持原顺序：相册里的先后跟网格完全一致；切「倒序」时整串反过来"
+                             : "图文混排：相册里的先后按 图1 视1 图2 视2 交替，跟网格右上角编号不是一回事")
                     }
                 }
                 .font(.footnote)
@@ -425,7 +425,7 @@ struct ContentView: View {
 
     // MARK: - 排列模式开关
 
-    /// 两种写入相册的顺序模式。开关只改时间戳顺序，分隔图/编号/裁头全部照旧。
+    /// 两种写入相册的顺序模式。开关只改时间戳顺序，画面与素材本身不动。
     private var orderModeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: $keepOriginalOrder) {
@@ -433,7 +433,7 @@ struct ContentView: View {
             }
 
             Text(keepOriginalOrder
-                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；红色分隔图、右上角编号、视频裁头照旧。切到「倒序」时整串反过来。"
+                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；画面不加任何标记。切到「倒序」时整串反过来。"
                  : "关闭（默认）：按 图1 视1 图2 视2… 交替写入相册，顺序会变。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -468,14 +468,14 @@ struct ContentView: View {
             }
 
             Text(trimValue > 0
-                 ? "每个视频在烧编号前先裁掉开头 \(formatSeconds(trimValue)) 秒，再写入相册；图片不受影响，原视频一条不删。默认 0.05 秒就是解决微信转发黑封面的那个值。"
-                 : "填 0 = 不裁头，视频只烧编号直接写入。")
+                 ? "每个视频先裁掉开头 \(formatSeconds(trimValue)) 秒再写入相册；图片不受影响，原视频一条不删，画面不烧编号。默认 0.05 秒就是解决微信转发黑封面的那个值。"
+                 : "填 0 = 不裁头，视频原样复制写入相册。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if trimValue > 0 {
-                Text("裁头与烧号在同一次重编码里完成，只压一次画质")
+                Text("需要裁头的视频重编码一次，画面上不加任何东西")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -518,22 +518,21 @@ struct ContentView: View {
             Text("重排后的顺序").font(.headline)
 
             if let plan = plan, !plan.entries.isEmpty, let start = startValue, let end = endValue {
-                Text("相册顺序：" + (["分隔图"] + plan.entries.enumerated().map { "\($0.offset + 1)·\($0.element.item.kind.short)" })
+                Text("相册顺序：" + plan.entries.enumerated().map { "\($0.offset + 1)·\($0.element.item.kind.short)" }
                     .joined(separator: " → "))
                     .font(.subheadline.monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(keepOriginalOrder
-                     ? "上面是相册里从上往下的先后，跟网格原有顺序完全一致；编号 1、2、3… 顺着排下来，不会跳号"
-                     : "上面是相册里从上往下的先后（图、视交替）；每个素材烧进画面的编号见网格右上角，是 1、2、3… 连排的另一套号")
+                     ? "上面是相册里从上往下的先后，跟网格原有顺序完全一致"
+                     : "上面是相册里从上往下的先后（图、视交替）；网格右上角的编号只在 App 里显示，不会写进画面")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                let amount = plan.entries.count
                 Text(start <= end
-                     ? "正序：编号 1 给第 \(start) 个、排最前；编号 \(amount) 给第 \(end) 个、排最后"
-                     : "倒序：编号 1 给第 \(start) 个、排最前；编号 \(amount) 给第 \(end) 个、排最后（第 \(start) 个在网格里靠后，编号反而最小）")
+                     ? "正序：第 \(start) 个排最前，第 \(end) 个排最后"
+                     : "倒序：第 \(start) 个排最前，第 \(end) 个排最后（整串反过来）")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -593,8 +592,8 @@ struct ContentView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Text(videoCount > 0 && trimValue > 0
-                     ? "视频要重编码（裁头 + 烧号），会比较慢，别锁屏"
-                     : "视频需要重编码，会比较慢，别锁屏")
+                     ? "视频裁头要重编码，会比较慢，别锁屏"
+                     : "正在写入相册，别锁屏")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
