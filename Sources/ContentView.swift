@@ -361,7 +361,7 @@ struct ContentView: View {
                     toggleDirection()
                 } label: {
                     HStack(spacing: 4) {
-                        Text(isReverseRange ? "倒序" : "顺序")
+                        Text(isReverseRange ? "倒序" : "正序")
                         Image(systemName: isReverseRange ? "arrow.up" : "arrow.down")
                             .font(.caption.weight(.bold))
                     }
