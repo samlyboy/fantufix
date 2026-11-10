@@ -29,10 +29,12 @@ final class ReorderRunner: ObservableObject {
         var done: Double = 0
         var failures: [String] = []
 
-        // 每批最前面写一张红底黄字分隔图（时间戳最新，所以排在相册最前）
-        status = "生成红色分隔图…"
+        // 每批最前面写一张分隔图（配色来自 plan.theme；时间戳最新，所以排在相册最前）
+        status = "生成分隔图…"
         do {
-            let data = Renderer.separatorJPEG(count: plan.entries.count, date: plan.separatorDate)
+            let data = Renderer.separatorJPEG(count: plan.entries.count,
+                                              date: plan.separatorDate,
+                                              theme: plan.theme)
             guard !data.isEmpty else { throw LibraryError.renderFailed }
             try await LibraryService.savePhoto(
                 data: data,

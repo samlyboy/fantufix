@@ -3,11 +3,13 @@ import UIKit
 
 enum Renderer {
 
-    // MARK: - 红色分隔图（黄字日期时间）
+    // MARK: - 分隔图（配色可选）
 
-    /// 每批素材最前面写一张：红底 + 黄字「分隔 · 批次起点 / 日期 / 时间 / 共 N 个素材」。
-    /// 只生成这一张分隔图；图片与视频画面不做任何加工（不烧编号、不加角标）。
-    static func separatorJPEG(count: Int, date: Date) -> Data {
+    /// 每批素材最前面写一张：「分隔 · 批次起点 / 日期 / 时间 / 共 N 个素材」。
+    /// 底色与字色由 `theme` 决定（默认红底黄字）；只生成这一张分隔图，
+    /// 图片与视频画面不做任何加工（不烧编号、不加角标）。
+    static func separatorJPEG(count: Int, date: Date,
+                              theme: SeparatorTheme = .defaultTheme) -> Data {
         let size = CGSize(width: 1080, height: 1920)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
@@ -15,17 +17,17 @@ enum Renderer {
 
         let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             let cg = ctx.cgContext
-            cg.setFillColor(UIColor(red: 0.78, green: 0.04, blue: 0.04, alpha: 1).cgColor)
+            cg.setFillColor(theme.background.cgColor)
             cg.fill(CGRect(origin: .zero, size: size))
 
-            let yellow = UIColor(red: 1.0, green: 0.90, blue: 0.0, alpha: 1.0)
+            let textColor = theme.foreground
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .center
 
             func draw(_ text: String, font: UIFont, y: CGFloat) {
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: font,
-                    .foregroundColor: yellow,
+                    .foregroundColor: textColor,
                     .paragraphStyle: paragraph
                 ]
                 (text as NSString).draw(

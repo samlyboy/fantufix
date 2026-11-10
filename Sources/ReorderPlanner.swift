@@ -14,14 +14,15 @@ enum ReorderPlanner {
     ///    - 开（保持原顺序）：直接按遍历顺序写，不做任何重排。
     ///      正序 = 网格原顺序；倒序 = 整串反过来。此时编号 1…M 与相册先后完全一致。
     ///
-    /// - 写入相册时最前面有 1 张红底黄字分隔图；其余都是原素材的干净副本：
-    ///   图片不重编码、视频最多裁掉开头，画面不加任何标记。
+    /// - 写入相册时最前面有 1 张分隔图（配色由 `theme` 决定，默认红底黄字）；
+    ///   其余都是原素材的干净副本：图片不重编码、视频最多裁掉开头，画面不加任何标记。
     /// - `start < end` 正序；`start > end` 倒序（区间仍是 [end, start]，遍历方向反过来）。
     static func makePlan(items: [MediaItem], start: Int, end: Int, now: Date,
-                         keepOriginalOrder: Bool = false) -> ReorderPlan {
+                         keepOriginalOrder: Bool = false,
+                         theme: SeparatorTheme = .defaultTheme) -> ReorderPlan {
         let count = items.count
         guard count > 0 else {
-            return ReorderPlan(separatorDate: now, entries: [])
+            return ReorderPlan(separatorDate: now, entries: [], theme: theme)
         }
 
         let clampedStart = min(max(1, start), count)
@@ -76,6 +77,6 @@ enum ReorderPlanner {
             entries.append(PlanEntry(id: "\(number)-\(item.id)", item: item, number: number, date: date))
         }
 
-        return ReorderPlan(separatorDate: now, entries: entries)
+        return ReorderPlan(separatorDate: now, entries: entries, theme: theme)
     }
 }

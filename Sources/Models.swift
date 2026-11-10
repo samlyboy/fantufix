@@ -41,7 +41,9 @@ struct PlanEntry: Identifiable {
 }
 
 struct ReorderPlan {
-    /// 红底黄字分隔图的创建时间：比本批所有素材都新，所以在相册里排最前
+    /// 分隔图的创建时间：比本批所有素材都新，所以在相册里排最前
     var separatorDate: Date
     var entries: [PlanEntry]
+    /// 分隔图配色（只影响分隔图，不影响素材画面）
+    var theme: SeparatorTheme
 }
