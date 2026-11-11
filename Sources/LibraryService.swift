@@ -77,7 +77,8 @@ enum LibraryService {
                 duration: asset.duration
             )
         }
-        return items.sorted { $0.creationDate < $1.creationDate }
+        // 保留 PhotosPicker 勾选的原始顺序（用户交错选的图/视就是交错的 1、2、3…），不做二次重排
+        return items
     }
 
     static func thumbnail(for id: String, size: CGSize) async -> UIImage? {

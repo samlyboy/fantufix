@@ -9,8 +9,6 @@ struct ContentView: View {
     @State private var endText = ""
     /// 视频裁头秒数（默认 0.05，只作用于视频，不影响图片）
     @State private var trimText = "0.05"
-    /// 写入相册的排列模式：关=图视交替（现状）；开=按网格原有顺序、顺序不变
-    @State private var keepOriginalOrder = false
     /// 分隔图配色 id（默认红底黄字）；只影响批次最前那张分隔图
     @State private var separatorThemeID = SeparatorTheme.defaultTheme.id
     @State private var isLoadingThumbs = false
@@ -56,7 +54,7 @@ struct ContentView: View {
     private var plan: ReorderPlan? {
         guard let start = startValue, let end = endValue else { return nil }
         return ReorderPlanner.makePlan(items: selectedItems, start: start, end: end,
-                                      now: Date(), keepOriginalOrder: keepOriginalOrder,
+                                      now: Date(),
                                       theme: separatorTheme)
     }
 
@@ -94,7 +92,6 @@ struct ContentView: View {
                     } else {
                         gridSection
                         rangeSection
-                        orderModeSection
                         separatorThemeSection
                         if videoCount > 0 { trimSection }
                         orderSection
@@ -177,11 +174,11 @@ struct ContentView: View {
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("怎么用").font(.headline)
-            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（不乱也行，程序会按相册时间排序）")
+            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（按你勾选的先后顺序排列）")
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
             Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，素材画面不加任何标记")
-            Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，只改相册先后")
+            Text("5. 相册顺序：始终按网格「起 → 止」的原有顺序写入（你勾的顺序就是相册顺序）；切「倒序」时整串反过来")
             Text("6. 点底部「重新排列」：先写 1 张分隔图进相册（配色在「分隔图配色」里选，默认红底黄字），再按当前顺序把素材原样写入；素材画面不烧编号")
             Text("7. 原片一条不动，新文件进系统相册「最近项目」")
         }
@@ -409,10 +406,8 @@ struct ContentView: View {
                          ? "倒序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个"
                          : "正序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个")
                     Text("网格编号从「起」那格开始、朝「止」的方向每格 +1，只用于 App 里查看，不会写进画面")
-                    if hasBothKinds(in: start, end: end) || keepOriginalOrder {
-                        Text(keepOriginalOrder
-                             ? "保持原顺序：相册里的先后跟网格完全一致；切「倒序」时整串反过来"
-                             : "图文混排：相册里的先后按 图1 视1 图2 视2 交替，跟网格右上角编号不是一回事")
+                    if hasBothKinds(in: start, end: end) {
+                        Text("相册里的先后跟网格完全一致；切「倒序」时整串反过来")
                     }
                 }
                 .font(.footnote)
@@ -424,27 +419,6 @@ struct ContentView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - 排列模式开关
-
-    /// 两种写入相册的顺序模式。开关只改时间戳顺序；分隔图照旧写在最前，素材画面不动。
-    private var orderModeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $keepOriginalOrder) {
-                Text("保持原顺序（不交替）").font(.headline)
-            }
-
-            Text(keepOriginalOrder
-                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；分隔图照旧在最前，素材画面不加标记。切到「倒序」时整串反过来。"
-                 : "关闭（默认）：按 图1 视1 图2 视2… 交替写入相册，顺序会变。")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -568,9 +542,7 @@ struct ContentView: View {
                     .font(.subheadline.monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(keepOriginalOrder
-                     ? "最前一张是分隔图（配色见「分隔图配色」），后面跟网格原有顺序完全一致"
-                     : "最前一张是分隔图；后面按图、视交替排。网格右上角的编号只在 App 里显示，不会写进画面")
+                Text("最前一张是分隔图（配色见「分隔图配色」），后面跟网格原序完全一致；网格右上角的编号只在 App 里显示，不会写进画面")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

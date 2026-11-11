@@ -5,14 +5,11 @@ enum ReorderPlanner {
     /// 给区间内的素材分配**网格编号**与**写入顺序**。两者是分开的两件事：
     ///
     /// 1. **编号**（只在 App 网格右上角显示，不写进画面、不烧进图片视频）：取「遍历位次」。
-    ///    从「起」那格开始、朝「止」的方向每格 +1，1…M 严格连排，与图视交替无关。
-    ///    所以网格（始终按原始顺序显示）正序读是 1、2、3…，倒序读是 M、M-1…1。
+    ///    从「起」那格开始、朝「止」的方向每格 +1，1…M 严格连排。
     ///
-    /// 2. **写入顺序**（时间戳，决定相册里从上往下的先后），由 `keepOriginalOrder` 决定两种模式：
-    ///    - 关（默认，交替）：图、视各抽一条序列，按「图1 视1 图2 视2 …」交替；
-    ///      数量不等时短的一方用完，剩下的顺势接在后面。编号 1 的时间最新。
-    ///    - 开（保持原顺序）：直接按遍历顺序写，不做任何重排。
-    ///      正序 = 网格原顺序；倒序 = 整串反过来。此时编号 1…M 与相册先后完全一致。
+    /// 2. **写入顺序**（时间戳，决定相册里从上往下的先后）：**始终按勾选原序（网格原序）写**，
+    ///    不做图视分堆/交替。`keepOriginalOrder` 保留但不再影响写入（仅为兼容旧调用签名），
+    ///    无论开/关，写入顺序都是「网格原序」或「整串反过来（倒序）」。
     ///
     /// - 写入相册时最前面有 1 张分隔图（配色由 `theme` 决定，默认红底黄字）；
     ///   其余都是原素材的干净副本：图片不重编码、视频最多裁掉开头，画面不加任何标记。
@@ -43,31 +40,9 @@ enum ReorderPlanner {
             numberByID[item.id] = index + 1
         }
 
-        // 写入顺序：只影响时间戳，不影响编号
-        //  交替模式   = 图/视各抽一条序列，按 图1 视1 图2 视2 … 交替
-        //  原顺序模式 = 直接按遍历顺序（正序=网格顺序，倒序=整串反过来），顺序原封不动
-        let writeOrder: [MediaItem]
-        if keepOriginalOrder {
-            writeOrder = walk
-        } else {
-            let images = walk.filter { $0.kind == .image }
-            let videos = walk.filter { $0.kind == .video }
-            var order: [MediaItem] = []
-            order.reserveCapacity(walk.count)
-            var i = 0
-            var j = 0
-            while i < images.count || j < videos.count {
-                if i < images.count {
-                    order.append(images[i])
-                    i += 1
-                }
-                if j < videos.count {
-                    order.append(videos[j])
-                    j += 1
-                }
-            }
-            writeOrder = order
-        }
+        // 写入顺序：始终按网格原序写（用户勾选的原序），不做图视分堆
+        //  keepOriginalOrder 保留仅为兼容旧调用；无论开/关，写入顺序都是 walk（倒序=整串反过来）
+        let writeOrder: [MediaItem] = walk
 
         var entries: [PlanEntry] = []
         entries.reserveCapacity(writeOrder.count)
