@@ -63,10 +63,13 @@ enum LibraryService {
     static func fetchItems(ids: [String]) -> [MediaItem] {
         guard !ids.isEmpty else { return [] }
         let result = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
-        var assets: [PHAsset] = []
-        result.enumerateObjects { asset, _, _ in assets.append(asset) }
+        var assetByID: [String: PHAsset] = [:]
+        result.enumerateObjects { asset, _, _ in assetByID[asset.localIdentifier] = asset }
 
-        let items: [MediaItem] = assets.map { asset in
+        // 严格按 PhotosPicker 勾选顺序（＝相册里看到的顺序）返回，
+        // 不让框架把视频排到图片前面、也不按拍摄时间二次重排
+        let items: [MediaItem] = ids.compactMap { id in
+            guard let asset = assetByID[id] else { return nil }
             let kind: MediaKind = asset.mediaType == .video ? .video : .image
             return MediaItem(
                 id: asset.localIdentifier,
@@ -77,7 +80,6 @@ enum LibraryService {
                 duration: asset.duration
             )
         }
-        // 保留 PhotosPicker 勾选的原始顺序（用户交错选的图/视就是交错的 1、2、3…），不做二次重排
         return items
     }
 
