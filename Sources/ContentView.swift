@@ -9,8 +9,8 @@ struct ContentView: View {
     @State private var endText = ""
     /// 视频裁头秒数（默认 0.05，只作用于视频，不影响图片）
     @State private var trimText = "0.05"
-    /// 写入相册的排列模式：关=图视交替（现状）；开=按网格原有顺序、顺序不变
-    @State private var keepOriginalOrder = false
+    /// 写入相册的排列模式：三态互斥，单一变量存放（按原序 / 图视交替 / 图先视后）
+    @State private var writeMode: WriteOrderMode = .gridOrder
     /// 分隔图配色 id（默认红底黄字）；只影响批次最前那张分隔图
     @State private var separatorThemeID = SeparatorTheme.defaultTheme.id
     @State private var isLoadingThumbs = false
@@ -56,7 +56,7 @@ struct ContentView: View {
     private var plan: ReorderPlan? {
         guard let start = startValue, let end = endValue else { return nil }
         return ReorderPlanner.makePlan(items: selectedItems, start: start, end: end,
-                                      now: Date(), keepOriginalOrder: keepOriginalOrder,
+                                      now: Date(), writeMode: writeMode,
                                       theme: separatorTheme)
     }
 
@@ -177,11 +177,11 @@ struct ContentView: View {
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("怎么用").font(.headline)
-            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（不乱也行，程序会按相册时间排序）")
+            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（顺序按你勾选的先后，也就是网格里的排列）")
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
             Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，素材画面不加任何标记")
-            Text("5. 「保持原顺序（不交替）」开关：默认关＝按 图1 视1 图2 视2… 交替；打开＝按网格原有顺序写，只改相册先后")
+            Text("5. 「写入顺序模式」三选一（默认「按原序」＝完全按网格顺序）：选「图视交替」＝图1 视1 图2 视2…；选「图先视后」＝先写完所有图片再写视频")
             Text("6. 点底部「重新排列」：先写 1 张分隔图进相册（配色在「分隔图配色」里选，默认红底黄字），再按当前顺序把素材原样写入；素材画面不烧编号")
             Text("7. 原片一条不动，新文件进系统相册「最近项目」")
         }
@@ -409,10 +409,8 @@ struct ContentView: View {
                          ? "倒序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个"
                          : "正序：从第 \(start) 个往第 \(end) 个走，共 \(amount) 个")
                     Text("网格编号从「起」那格开始、朝「止」的方向每格 +1，只用于 App 里查看，不会写进画面")
-                    if hasBothKinds(in: start, end: end) || keepOriginalOrder {
-                        Text(keepOriginalOrder
-                             ? "保持原顺序：相册里的先后跟网格完全一致；切「倒序」时整串反过来"
-                             : "图文混排：相册里的先后按 图1 视1 图2 视2 交替，跟网格右上角编号不是一回事")
+                    if hasBothKinds(in: start, end: end) {
+                        Text(modeLineInRange)
                     }
                 }
                 .font(.footnote)
@@ -430,19 +428,65 @@ struct ContentView: View {
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: - 排列模式开关
+    // MARK: - 写入顺序模式（三态互斥）
 
-    /// 两种写入相册的顺序模式。开关只改时间戳顺序；分隔图照旧写在最前，素材画面不动。
+    /// 三种写入相册的顺序模式，**互斥单选**：只存一个 `writeMode`，点已选中的那个不会取消。
+    /// 模式只改时间戳顺序；分隔图照旧写在最前，素材画面不动。
     private var orderModeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: $keepOriginalOrder) {
-                Text("保持原顺序（不交替）").font(.headline)
+            Text("写入顺序模式").font(.headline)
+
+            ForEach(WriteOrderMode.allCases) { mode in
+                Button {
+                    // 互斥：直接赋值，永远有且只有一个生效；重复点同一个不取消
+                    writeMode = mode
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: writeMode == mode ? "largecircle.fill.circle" : "circle")
+                            .font(.system(size: 18))
+                            .foregroundStyle(writeMode == mode ? Color.accentColor : Color.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(mode.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                            Text(mode.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(writeMode == mode
+                                  ? Color.accentColor.opacity(0.12)
+                                  : Color(uiColor: .tertiarySystemFill))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(writeMode == mode ? Color.accentColor : Color.clear, lineWidth: 1.2)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
             }
 
-            Text(keepOriginalOrder
-                 ? "已开启：按网格里「起 → 止」那一串的原有顺序写入相册，顺序原封不动；分隔图照旧在最前，素材画面不加标记。切到「倒序」时整串反过来。"
-                 : "关闭（默认）：按 图1 视1 图2 视2… 交替写入相册，顺序会变。")
+            Text(writeMode.hint)
                 .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if rangeIsSingleKind {
+                Text("本段只有图片（或只有视频），三种模式的结果相同。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text("分隔图始终排在最前（时间最新）；三种模式只改相册先后，素材画面不加任何标记。")
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -542,6 +586,36 @@ struct ContentView: View {
         return slice.contains { $0.kind == .image } && slice.contains { $0.kind == .video }
     }
 
+    /// 当前区间内是否只有一种类型（都图或都视频）→ 三种模式结果相同
+    private var rangeIsSingleKind: Bool {
+        guard let start = startValue, let end = endValue else { return false }
+        return !hasBothKinds(in: start, end: end)
+    }
+
+    /// 「处理区间」卡片里的一行模式说明（仅区间同时含图视时展示）
+    private var modeLineInRange: String {
+        switch writeMode {
+        case .gridOrder:
+            return "按原序：相册里的先后跟网格完全一致；切「倒序」时整串反过来"
+        case .interleave:
+            return "图视交替：相册里的先后按 图1 视1 图2 视2 交替，跟网格右上角编号不是一回事"
+        case .imagesFirst:
+            return "图先视后：相册里先是全部图片、再接全部视频，跟网格右上角编号不是一回事"
+        }
+    }
+
+    /// 「重排后的顺序」预览下方的模式脚注
+    private var previewModeNote: String {
+        switch writeMode {
+        case .gridOrder:
+            return "最前一张是分隔图（配色见「分隔图配色」），后面跟网格原有顺序完全一致"
+        case .interleave:
+            return "最前一张是分隔图；后面按图、视交替排。网格右上角的编号只在 App 里显示，不会写进画面"
+        case .imagesFirst:
+            return "最前一张是分隔图；后面先排完全部图片，再接全部视频。网格右上角的编号只在 App 里显示，不会写进画面"
+        }
+    }
+
     private func numberField(title: String, text: Binding<String>) -> some View {
         HStack(spacing: 6) {
             Text(title)
@@ -568,9 +642,7 @@ struct ContentView: View {
                     .font(.subheadline.monospacedDigit())
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(keepOriginalOrder
-                     ? "最前一张是分隔图（配色见「分隔图配色」），后面跟网格原有顺序完全一致"
-                     : "最前一张是分隔图；后面按图、视交替排。网格右上角的编号只在 App 里显示，不会写进画面")
+                Text(previewModeNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
