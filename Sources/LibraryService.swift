@@ -66,8 +66,8 @@ enum LibraryService {
         var assetByID: [String: PHAsset] = [:]
         result.enumerateObjects { asset, _, _ in assetByID[asset.localIdentifier] = asset }
 
-        // 严格按 PhotosPicker 勾选顺序（＝相册里看到的顺序）返回，
-        // 不让框架把视频排到图片前面、也不按拍摄时间二次重排
+        // 严格按 PhotosPicker 勾选顺序返回（不按拍摄时间二次重排、不让视频前置）；
+        // 网格显示层会再把整个数组反转一次（见 ContentView.reload），最终左上第 1 格 = 最后勾的
         let items: [MediaItem] = ids.compactMap { id in
             guard let asset = assetByID[id] else { return nil }
             let kind: MediaKind = asset.mediaType == .video ? .video : .image

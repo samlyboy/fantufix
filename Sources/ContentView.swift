@@ -177,7 +177,7 @@ struct ContentView: View {
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("怎么用").font(.headline)
-            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（顺序按你勾选的先后，也就是网格里的排列）")
+            Text("1. 点上面的按钮，一次勾选要处理的图片和视频（网格按勾选先后倒着排：最后勾的在左上第 1 格，最先勾的在最后一格）")
             Text("2. 网格里点某个格子可以取消 / 恢复它，没选中的不参与本次重排")
             Text("3. 用「起 / 止」两个数字圈出这一段；起 > 止 就是倒序（起 9 止 1 → 左上编号 9、右下编号 1）")
             Text("4. 视频默认先裁掉开头 0.05 秒（可在「视频裁头」改，填 0 就不裁）；图片不动，素材画面不加任何标记")
@@ -737,6 +737,8 @@ struct ContentView: View {
 
         isLoadingThumbs = true
         var loaded = LibraryService.fetchItems(ids: ids)
+        // 网格显示顺序 = 勾选先后的**倒序**：最后勾的显示在左上第 1 格，最先勾的显示在最后一格
+        loaded.reverse()
         guard generation == loadGeneration else { return }
 
         items = loaded
